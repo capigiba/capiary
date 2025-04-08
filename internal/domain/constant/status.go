@@ -22,11 +22,6 @@ var AllAccountStatus = []AccountStatus{
 	StatusArchived,
 }
 
-func IsValidAccountStatus(accountStatus AccountStatus) bool {
-	for _, r := range AllAccountStatus {
-		if r == accountStatus {
-			return true
-		}
-	}
-	return false
+func IsValidAccountStatus(status AccountStatus) bool {
+	return IsValid(status, AllAccountStatus)
 }

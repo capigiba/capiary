@@ -12,10 +12,5 @@ const (
 var AllRoles = []Role{RoleBasic, RolePremium, RoleAdmin, RoleCP}
 
 func IsValidRole(role Role) bool {
-	for _, r := range AllRoles {
-		if r == role {
-			return true
-		}
-	}
-	return false
+	return IsValid(role, AllRoles)
 }
