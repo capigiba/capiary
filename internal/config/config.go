@@ -69,17 +69,6 @@ func LoadConfig() (*Config, error) {
 		fmt.Println("No config file found, relying on environment variables")
 	}
 
-	// Define default values for non-sensitive fields
-	v.SetDefault("server.port", "8080")
-	v.SetDefault("server.language", "en")
-	v.SetDefault("server.i18n_path", "../../i18n")
-	v.SetDefault("cors.allowed_origins", []string{"http://localhost:3000"})
-	v.SetDefault("cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
-	v.SetDefault("cors.allowed_headers", []string{"Origin", "Content-Type", "Authorization"})
-	v.SetDefault("cors.expose_headers", []string{"Content-Length"})
-	v.SetDefault("cors.allow_credentials", true)
-	v.SetDefault("cors.max_age", 43200) // 12 hours in seconds
-
 	// Bind environment variables to specific config keys
 	v.BindEnv("database.postgres_url", "POSTGRES_URL")
 
