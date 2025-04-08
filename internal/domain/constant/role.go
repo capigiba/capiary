@@ -5,11 +5,16 @@ type Role string
 const (
 	RoleBasic   Role = "basic"
 	RolePremium Role = "premium"
-	RoleCP      Role = "cp"
+	RoleCJ      Role = "cj"
 	RoleAdmin   Role = "admin"
 )
 
-var AllRoles = []Role{RoleBasic, RolePremium, RoleAdmin, RoleCP}
+var AllRoles = []Role{
+	RoleBasic,
+	RolePremium,
+	RoleAdmin,
+	RoleCJ,
+}
 
 func IsValidRole(role Role) bool {
 	return IsValid(role, AllRoles)
