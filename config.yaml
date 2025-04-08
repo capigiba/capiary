@@ -1,8 +1,10 @@
 server:
   port: "8080"
+  jwt_secret: "${JWT_SECRET}"
 
 database:
   postgres_url: "${POSTGRES_URL}"
+  mongodb_uri: "${MONGODB_ENDPOINT}"
 
 cors:
   allowed_origins:
@@ -21,3 +23,7 @@ cors:
     - "Content-Length"
   allow_credentials: true
   max_age: 43200 # in seconds (12 hours)
+
+swagger:
+  url:
+    - "http://localhost:8080/swagger"

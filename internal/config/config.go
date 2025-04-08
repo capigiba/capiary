@@ -18,8 +18,8 @@ type Config struct {
 
 // ServerConfig holds server-related configurations.
 type ServerConfig struct {
-	Port string
-
+	Port      string
+	JWTSecret string `mapstructure:"jwt_secret"`
 	// TODO: implement later
 	// Language string
 	// I18NPath string `mapstructure:"i18n_path"`
@@ -28,6 +28,7 @@ type ServerConfig struct {
 // DatabaseConfig holds database-related configurations.
 type DatabaseConfig struct {
 	PostgresURL string `mapstructure:"postgres_url"`
+	MongodbURI  string `mapstructure:"mongodb_uri"`
 }
 
 // CORSConfig holds CORS-related configurations.
@@ -71,6 +72,8 @@ func LoadConfig() (*Config, error) {
 
 	// Bind environment variables to specific config keys
 	v.BindEnv("database.postgres_url", "POSTGRES_URL")
+	v.BindEnv("database.mongodb_uri", "MONGODB_ENDPOINT")
+	v.BindEnv("server.jwt_secret", "JWT_SECRET")
 
 	// Unmarshal the config into the Config struct
 	var config Config
