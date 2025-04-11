@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -63,7 +64,8 @@ func (am *AuthUserMiddleware) GetUserByToken(tokenStr string) (*entity.User, err
 	}
 
 	userID := uint64(userIDFloat)
-	user, err := am.userRepo.GetUserByID(userID)
+	context := context.Background()
+	user, err := am.userRepo.GetUserByID(context, userID)
 	if err != nil {
 		return nil, errors.New("user not found")
 	}

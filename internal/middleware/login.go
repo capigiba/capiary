@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 
 	"github.com/capigiba/capiary/internal/domain/constant"
@@ -9,7 +10,8 @@ import (
 
 // Login authenticates the user and returns a JWT token.
 func (am *AuthUserMiddleware) Login(email, password string) (string, uint64, constant.Role, error) {
-	user, err := am.userRepo.GetUserByEmail(email)
+	context := context.Background()
+	user, err := am.userRepo.GetUserByEmail(context, email)
 	if err != nil {
 		return "", 0, "", errors.New("user not found")
 	}

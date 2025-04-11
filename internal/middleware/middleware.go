@@ -3,6 +3,7 @@ package middleware
 import (
 	"github.com/capigiba/capiary/internal/domain/constant"
 	"github.com/capigiba/capiary/internal/domain/entity"
+	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,20 +15,14 @@ type MiddlewareInterface interface {
 	GetUserByToken(tokenStr string) (*entity.User, error)
 }
 
-// UserRepository defines the methods needed from your user storage layer
-type UserRepository interface {
-	GetUserByEmail(email string) (*entity.User, error)
-	GetUserByID(userID uint64) (*entity.User, error)
-}
-
 // AuthUserMiddleware handles user authentication
 type AuthUserMiddleware struct {
-	userRepo  UserRepository
+	userRepo  repositories.UserRepository
 	secretKey string
 }
 
 // NewAuthUserMiddleware creates a new AuthUserMiddleware
-func NewAuthUserMiddleware(repo UserRepository, secretKey string) *AuthUserMiddleware {
+func NewAuthUserMiddleware(repo repositories.UserRepository, secretKey string) *AuthUserMiddleware {
 	return &AuthUserMiddleware{
 		userRepo:  repo,
 		secretKey: secretKey,
