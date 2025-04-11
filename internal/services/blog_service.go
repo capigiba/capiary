@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/capigiba/capiary/internal/domain/constant"
 	"github.com/capigiba/capiary/internal/domain/entity"
 	"github.com/capigiba/capiary/internal/infra/db/query"
+	"github.com/capigiba/capiary/internal/infra/storage"
 	"github.com/capigiba/capiary/internal/repositories"
+	"github.com/gin-gonic/gin"
 )
 
 type BlogPostService interface {
-	CreatePost(ctx context.Context, post entity.BlogPost) (string, error)
+	// CreatePost(ctx context.Context, post entity.BlogPost) (string, error)
+	CreatePostWithFiles(c *gin.Context, post entity.BlogPost) (string, error)
 
 	// This method will parse the raw filters/sorts in the service, build the QueryOptions, and then fetch.
 	FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.BlogPost, error)
@@ -20,20 +24,93 @@ type BlogPostService interface {
 }
 
 type blogPostService struct {
-	repo repositories.BlogPostRepository
+	repo       repositories.BlogPostRepository
+	s3Uploader storage.S3UploaderInterface
 }
 
-func NewBlogPostService(repo repositories.BlogPostRepository) BlogPostService {
+func NewBlogPostService(repo repositories.BlogPostRepository, s3Uploader storage.S3UploaderInterface) BlogPostService {
 	return &blogPostService{
-		repo: repo,
+		repo:       repo,
+		s3Uploader: s3Uploader,
 	}
 }
 
-func (s *blogPostService) CreatePost(ctx context.Context, post entity.BlogPost) (string, error) {
+func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPost) (string, error) {
 	if post.Title == "" {
 		return "", fmt.Errorf("title cannot be empty")
 	}
-	return s.repo.Add(ctx, post)
+
+	// Loop over the blocks
+	for i := range post.Blocks {
+		switch post.Blocks[i].Type {
+		case entity.BlockTypeImage:
+			if post.Blocks[i].Image != nil {
+				// Retrieve the file bytes from the gin.Context
+				key := fmt.Sprintf("block_%d_fileBytes", i)
+				raw, exists := c.Get(key)
+				if !exists {
+					return "", fmt.Errorf("missing file data for image block %d", i)
+				}
+				fileBytes, ok := raw.([]byte)
+				if !ok {
+					return "", fmt.Errorf("invalid file data format for image block %d", i)
+				}
+
+				// Call S3 upload
+				s3Key, err := s.s3Uploader.UploadFile(
+					constant.MediaTypeImage,       // S3 folder
+					post.Blocks[i].Image.Filename, // the original filename
+					"image/png",                   // or detect from extension
+					"0",                           // 0 for now, will update when complete user feature
+					fileBytes,
+				)
+				if err != nil {
+					return "", fmt.Errorf("failed to upload image block %d: %w", i, err)
+				}
+
+				// Overwrite the Filename with the returned S3 key
+				post.Blocks[i].Image.Filename = s3Key
+			}
+
+		case entity.BlockTypeVideo:
+			if post.Blocks[i].Video != nil {
+				key := fmt.Sprintf("block_%d_fileBytes", i)
+				raw, exists := c.Get(key)
+				if !exists {
+					return "", fmt.Errorf("missing file data for video block %d", i)
+				}
+				fileBytes, ok := raw.([]byte)
+				if !ok {
+					return "", fmt.Errorf("invalid file data format for video block %d", i)
+				}
+
+				// Upload the video
+				s3Key, err := s.s3Uploader.UploadFile(
+					"videos",
+					post.Blocks[i].Video.Filename,
+					"video/mp4",
+					"someUserID",
+					fileBytes,
+				)
+				if err != nil {
+					return "", fmt.Errorf("failed to upload video block %d: %w", i, err)
+				}
+
+				post.Blocks[i].Video.Filename = s3Key
+			}
+
+		case entity.BlockTypeText:
+			// No special action: the block.Text is already filled out
+		}
+	}
+
+	// Finally store the post in the DB
+	insertedID, err := s.repo.Add(c.Request.Context(), post)
+	if err != nil {
+		return "", fmt.Errorf("failed to insert blog post: %w", err)
+	}
+
+	return insertedID, nil
 }
 
 // FindPostsWithRawQuery: parse the raw query params in the service, then build QueryOptions.
