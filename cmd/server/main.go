@@ -6,6 +6,7 @@ import (
 	"github.com/capigiba/capiary/internal/config"
 	handler "github.com/capigiba/capiary/internal/handler/rest/v1"
 	"github.com/capigiba/capiary/internal/infra/db/mongodb"
+	"github.com/capigiba/capiary/internal/infra/storage"
 	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/capigiba/capiary/internal/router"
 	"github.com/capigiba/capiary/internal/services"
@@ -31,13 +32,23 @@ func main() {
 
 	dbMongoConn := mongodb.NewMongoDBClient(cfg.Database.MongodbURI)
 
+	storageClient, err := storage.NewS3Uploader(
+		cfg.Storage.AwsAccessKeyID,
+		cfg.Storage.AwsSecretKey,
+		cfg.Storage.AwsRegion,
+		cfg.Storage.AwsBucket,
+	)
+	if err != nil {
+		appLogger.Errorf("Failed to initialize AWS S3 client: %v", err)
+	}
+
 	// userRepo := repositories.NewUserRepo(dbPostgresConn)
 	// authUserMiddleware := middleware.NewAuthUserMiddleware(userRepo, cfg.Server.JWTSecret)
 	// userService := services.NewUserService(userRepo, authUserMiddleware)
 	// userHandler := handler.NewUserHandler(userService)
 
 	blogRepo := repositories.NewBlogPostRepository(dbMongoConn)
-	blogService := services.NewBlogPostService(blogRepo)
+	blogService := services.NewBlogPostService(blogRepo, storageClient)
 	blogHandler := handler.NewBlogPostHandler(blogService)
 
 	swaggerRouter := router.NewSwaggerRouter()

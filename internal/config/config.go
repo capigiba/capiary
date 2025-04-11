@@ -13,7 +13,15 @@ import (
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Storage  StorageConfig
 	CORS     CORSConfig
+}
+
+type StorageConfig struct {
+	AwsRegion      string `mapstructure:"aws_region"`
+	AwsBucket      string `mapstructure:"aws_bucket"`
+	AwsAccessKeyID string `mapstructure:"aws_access_key_id"`
+	AwsSecretKey   string `mapstructure:"aws_secret_key"`
 }
 
 // ServerConfig holds server-related configurations.
@@ -74,6 +82,10 @@ func LoadConfig() (*Config, error) {
 	v.BindEnv("database.postgres_url", "POSTGRES_URL")
 	v.BindEnv("database.mongodb_uri", "MONGODB_ENDPOINT")
 	v.BindEnv("server.jwt_secret", "JWT_SECRET")
+	v.BindEnv("storage.aws_region", "AWS_REGION")
+	v.BindEnv("storage.aws_bucket", "AWS_BUCKET")
+	v.BindEnv("storage.aws_access_key_id", "AWS_ACCESS_KEY_ID")
+	v.BindEnv("storage.aws_secret_key", "AWS_SECRET_KEY")
 
 	// Unmarshal the config into the Config struct
 	var config Config
