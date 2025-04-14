@@ -10,17 +10,14 @@ import (
 	"github.com/capigiba/capiary/internal/infra/storage"
 	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type BlogPostService interface {
-	// CreatePost(ctx context.Context, post entity.BlogPost) (string, error)
 	CreatePostWithFiles(c *gin.Context, post entity.BlogPost) (string, error)
-
-	// This method will parse the raw filters/sorts in the service, build the QueryOptions, and then fetch.
 	FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.BlogPost, error)
-
-	// For updates/deletes, we can parse the filters in the service as well.
 	UpdatePostByRawFilter(ctx context.Context, rawFilters []string, update entity.BlogPost) error
+	LoadAllPosts(ctx context.Context) ([]entity.BlogPost, error)
 }
 
 type blogPostService struct {
@@ -115,29 +112,39 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 
 // FindPostsWithRawQuery: parse the raw query params in the service, then build QueryOptions.
 func (s *blogPostService) FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.BlogPost, error) {
-	// 1) Parse filters
 	parsedFilters, err := query.ParseFilters(rawFilters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse filters: %w", err)
 	}
 
-	// 2) Parse sorts
+	for i, f := range parsedFilters {
+		if f.Field == "id" {
+			idStr, ok := f.Value.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid id filter value type")
+			}
+			oid, err := primitive.ObjectIDFromHex(idStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert id to ObjectID: %w", err)
+			}
+			parsedFilters[i].Field = "_id"
+			parsedFilters[i].Value = oid
+		}
+	}
+
 	parsedSorts, err := query.ParseSorts(rawSorts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sorts: %w", err)
 	}
 
-	// 3) Parse fields
 	parsedFields := query.ParseFields(rawFields)
 
-	// 4) Build the QueryOptions
 	opts := query.QueryOptions{
 		Filters: parsedFilters,
 		Sorts:   parsedSorts,
 		Fields:  parsedFields,
 	}
 
-	// 5) Call the repository
 	return s.repo.FindByQuery(ctx, opts)
 }
 
@@ -155,4 +162,12 @@ func (s *blogPostService) UpdatePostByRawFilter(ctx context.Context, rawFilters 
 		return fmt.Errorf("cannot update post with empty title")
 	}
 	return s.repo.UpdateByQuery(ctx, filterDoc, update)
+}
+
+func (s *blogPostService) LoadAllPosts(ctx context.Context) ([]entity.BlogPost, error) {
+	posts, err := s.repo.LoadAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load all posts: %w", err)
+	}
+	return posts, nil
 }

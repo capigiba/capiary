@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/capigiba/capiary/internal/domain/entity"
 	"github.com/capigiba/capiary/internal/infra/db/mongodb"
@@ -13,6 +14,7 @@ type BlogPostRepository interface {
 	Add(ctx context.Context, post entity.BlogPost) (string, error)
 	UpdateByQuery(ctx context.Context, filter bson.M, update entity.BlogPost) error
 	FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.BlogPost, error)
+	LoadAll(ctx context.Context) ([]entity.BlogPost, error)
 }
 
 type blogPostRepository struct {
@@ -42,5 +44,10 @@ func (r *blogPostRepository) UpdateByQuery(ctx context.Context, filter bson.M, u
 }
 
 func (r *blogPostRepository) FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.BlogPost, error) {
+	fmt.Println(opts)
 	return r.adapter.FindWithQuery(opts)
+}
+
+func (r *blogPostRepository) LoadAll(ctx context.Context) ([]entity.BlogPost, error) {
+	return r.adapter.Find(bson.M{})
 }

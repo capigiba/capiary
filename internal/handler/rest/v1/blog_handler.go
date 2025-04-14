@@ -165,3 +165,12 @@ func (h *BlogPostHandler) UpdateBlogPostHandler(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "post updated"})
 }
+
+func (h *BlogPostHandler) LoadAllPostsHandler(c *gin.Context) {
+	posts, err := h.service.LoadAllPosts(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, posts)
+}

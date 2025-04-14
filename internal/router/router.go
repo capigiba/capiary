@@ -54,6 +54,7 @@ func (a *AppRouter) RegisterBlogRoutes(r *gin.RouterGroup) {
 		protected.POST("/posts", a.blogController.CreateBlogPostHandler)
 		protected.GET("/posts", a.blogController.FindBlogPostsHandler)
 		protected.PUT("/posts", a.blogController.UpdateBlogPostHandler)
+		protected.GET("/posts/all", a.blogController.LoadAllPostsHandler)
 	}
 }
 
