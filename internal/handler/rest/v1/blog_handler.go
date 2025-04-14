@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/capigiba/capiary/internal/domain/constant"
@@ -8,6 +11,7 @@ import (
 	"github.com/capigiba/capiary/internal/domain/request"
 	"github.com/capigiba/capiary/internal/services"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type BlogPostHandler struct {
@@ -19,46 +23,87 @@ func NewBlogPostHandler(service services.BlogPostService) *BlogPostHandler {
 }
 
 func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
-	// parse incoming JSON into our request DTO
-	var req request.CreateBlogPostRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+
+	// 1) Parse the "metadata" field from the multipart form.
+	metadataJSON := c.PostForm("metadata")
+	if metadataJSON == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing metadata in form"})
 		return
 	}
 
+	// 2) Unmarshal metadata into your request struct.
+	var req request.CreateBlogPostRequest
+	if err := json.Unmarshal([]byte(metadataJSON), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metadata JSON: " + err.Error()})
+		return
+	}
+
+	// 3) Now handle each block’s file, if any.
+	//    For block i, the file field on the front-end is "block_i_file"
+	for i, blockReq := range req.Blocks {
+		if blockReq.Type == constant.MediaTypeImage || blockReq.Type == constant.MediaTypeVideo {
+			fieldName := fmt.Sprintf("block_%d_file", i)
+			fileHeader, err := c.FormFile(fieldName)
+			if err != nil {
+				// If we get an error here, it might just mean the user didn’t attach a file
+				// Or it could be a real problem. Decide how to handle that:
+				if err == http.ErrMissingFile {
+					// Possibly no file for that block
+					continue
+				}
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			// Read the file bytes
+			f, err := fileHeader.Open()
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			defer f.Close()
+
+			fileBytes, err := io.ReadAll(f)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			// 4) Stash these bytes in the Gin context for your service code to pick up
+			c.Set(fmt.Sprintf("block_%d_fileBytes", i), fileBytes)
+		}
+	}
+
+	// 5) Now that all data is in place, do the normal create:
+	//    This calls h.service.CreatePostWithFiles(c, post) in your code
 	post := entity.BlogPost{
+		ID:    primitive.NewObjectID(),
 		Title: req.Title,
 	}
 
-	// DTO: CreateBlockRequest -> entity.Block
+	// Rebuild the blocks array from req.Blocks, just like your snippet does:
 	var blocks []entity.Block
 	for i, blockReq := range req.Blocks {
 		block := entity.Block{
 			ID:    i + 1,
 			Order: blockReq.Order,
 		}
-
 		switch blockReq.Type {
 		case constant.MediaTypeText:
 			block.Type = entity.BlockTypeText
-			// convert paragraphs
 			textBlock := entity.TextBlock{}
 			for _, paraReq := range blockReq.Paragraphs {
 				paragraph := entity.Paragraph{
 					ID:   paraReq.ID,
 					Text: paraReq.Text,
 				}
-
-				// convert formats
 				for _, formatReq := range paraReq.Formats {
 					paragraph.Formats = append(paragraph.Formats, entity.Format{
-						Type:      entity.FormatType(formatReq.Type), // cast the string
+						Type:      entity.FormatType(formatReq.Type),
 						Start:     formatReq.Start,
 						End:       formatReq.End,
 						Hyperlink: formatReq.Hyperlink,
 					})
 				}
-
 				textBlock.Paragraphs = append(textBlock.Paragraphs, paragraph)
 			}
 			block.Text = &textBlock
@@ -66,7 +111,7 @@ func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
 		case constant.MediaTypeImage:
 			block.Type = entity.BlockTypeImage
 			block.Image = &entity.ImageBlock{
-				Filename: blockReq.Filename,
+				Filename: blockReq.Filename, // from JSON
 			}
 
 		case constant.MediaTypeVideo:
@@ -75,12 +120,11 @@ func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
 				Filename: blockReq.Filename,
 			}
 		}
-
 		blocks = append(blocks, block)
 	}
-
 	post.Blocks = blocks
 
+	// Actually call your service
 	insertedID, err := h.service.CreatePostWithFiles(c, post)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
