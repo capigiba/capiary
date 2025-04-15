@@ -6,7 +6,9 @@ import (
 	"github.com/capigiba/capiary/internal/config"
 	handler "github.com/capigiba/capiary/internal/handler/rest/v1"
 	"github.com/capigiba/capiary/internal/infra/db/mongodb"
+	"github.com/capigiba/capiary/internal/infra/db/postgres"
 	"github.com/capigiba/capiary/internal/infra/storage"
+	"github.com/capigiba/capiary/internal/middleware"
 	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/capigiba/capiary/internal/router"
 	"github.com/capigiba/capiary/internal/services"
@@ -24,11 +26,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// dbPostgresConn, err := postgres.NewPostgresDB(cfg.Database.PostgresURL)
-	// if err != nil {
-	// 	appLogger.Errorf("database initialization error: %w", err)
-	// 	os.Exit(1)
-	// }
+	dbPostgresConn, err := postgres.NewPostgresDB(cfg.Database.RdsPostgresURL)
+	if err != nil {
+		appLogger.Errorf("database initialization error: %w", err)
+		os.Exit(1)
+	}
 
 	dbMongoConn := mongodb.NewMongoDBClient(cfg.Database.MongodbURI)
 
@@ -42,10 +44,10 @@ func main() {
 		appLogger.Errorf("Failed to initialize AWS S3 client: %v", err)
 	}
 
-	// userRepo := repositories.NewUserRepo(dbPostgresConn)
-	// authUserMiddleware := middleware.NewAuthUserMiddleware(userRepo, cfg.Server.JWTSecret)
-	// userService := services.NewUserService(userRepo, authUserMiddleware)
-	// userHandler := handler.NewUserHandler(userService)
+	userRepo := repositories.NewUserRepo(dbPostgresConn)
+	authUserMiddleware := middleware.NewAuthUserMiddleware(userRepo, cfg.Server.JWTSecret)
+	userService := services.NewUserService(userRepo, authUserMiddleware)
+	userHandler := handler.NewUserHandler(userService)
 
 	blogRepo := repositories.NewBlogPostRepository(dbMongoConn)
 	blogService := services.NewBlogPostService(blogRepo, storageClient)
@@ -53,8 +55,8 @@ func main() {
 
 	swaggerRouter := router.NewSwaggerRouter()
 
-	// appRouter := router.NewAppRouter(userHandler, blogHandler, authUserMiddleware, swaggerRouter)
-	appRouter := router.NewAppRouter(nil, blogHandler, nil, swaggerRouter)
+	appRouter := router.NewAppRouter(userHandler, blogHandler, authUserMiddleware, swaggerRouter)
+	// appRouter := router.NewAppRouter(nil, blogHandler, nil, swaggerRouter)
 
 	router := gin.Default()
 

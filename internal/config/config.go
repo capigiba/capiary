@@ -35,8 +35,9 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database-related configurations.
 type DatabaseConfig struct {
-	PostgresURL string `mapstructure:"postgres_url"`
-	MongodbURI  string `mapstructure:"mongodb_uri"`
+	PostgresURL    string `mapstructure:"postgres_url"`
+	RdsPostgresURL string `mapstructure:"rds_postgres_url"`
+	MongodbURI     string `mapstructure:"mongodb_uri"`
 }
 
 // CORSConfig holds CORS-related configurations.
@@ -80,6 +81,7 @@ func LoadConfig() (*Config, error) {
 
 	// Bind environment variables to specific config keys
 	v.BindEnv("database.postgres_url", "POSTGRES_URL")
+	v.BindEnv("database.rds_postgres_url", "RDS_POSTGRES_ENDPOINT")
 	v.BindEnv("database.mongodb_uri", "MONGODB_ENDPOINT")
 	v.BindEnv("server.jwt_secret", "JWT_SECRET")
 	v.BindEnv("storage.aws_region", "AWS_REGION")
