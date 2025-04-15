@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -16,6 +18,7 @@ import (
 // S3UploaderInterface defines the interface for the S3 uploader
 type S3UploaderInterface interface {
 	UploadFile(folder, fileName, fileType, userID string, fileData []byte) (string, error)
+	GeneratePresignedURL(key string, expiry time.Duration) (string, error)
 }
 
 // S3Uploader holds the S3 client and the bucket name
@@ -52,7 +55,10 @@ func (u *S3Uploader) UploadFile(folder, fileName, fileType, userID string, fileD
 
 	// timestamp + fileName + userID
 	now := time.Now().Unix()
-	finalFileName := fmt.Sprintf("%d_%s_%s", now, fileName, userID)
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(fileName, ext)
+	safeBase := sanitizeFileName(base)
+	finalFileName := fmt.Sprintf("%d_%s_%s%s", now, safeBase, userID, ext)
 
 	// Build the S3 key: folder + finalFileName
 	s3Key := finalFileName
@@ -75,4 +81,29 @@ func (u *S3Uploader) UploadFile(folder, fileName, fileType, userID string, fileD
 	}
 
 	return s3Key, nil
+}
+
+func (u *S3Uploader) GeneratePresignedURL(key string, expiry time.Duration) (string, error) {
+	presignClient := s3.NewPresignClient(u.client, s3.WithPresignExpires(expiry))
+
+	// Build the input
+	getObjInput := &s3.GetObjectInput{
+		Bucket: aws.String(u.bucket),
+		Key:    aws.String(key),
+	}
+
+	// Create the presigned GET URL
+	presignResult, err := presignClient.PresignGetObject(context.TODO(), getObjInput)
+	if err != nil {
+		return "", fmt.Errorf("failed to presign GetObject: %v", err)
+	}
+
+	return presignResult.URL, nil
+}
+
+func sanitizeFileName(name string) string {
+	name = strings.ReplaceAll(name, " ", "_")
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	return fmt.Sprintf("%s%s", base, ext)
 }
