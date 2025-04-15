@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/capigiba/capiary/internal/domain/constant"
 	"github.com/capigiba/capiary/internal/domain/entity"
@@ -42,7 +43,6 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 		switch post.Blocks[i].Type {
 		case entity.BlockTypeImage:
 			if post.Blocks[i].Image != nil {
-				// Retrieve the file bytes from the gin.Context
 				key := fmt.Sprintf("block_%d_fileBytes", i)
 				raw, exists := c.Get(key)
 				if !exists {
@@ -55,10 +55,10 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 
 				// Call S3 upload
 				s3Key, err := s.s3Uploader.UploadFile(
-					constant.MediaTypeImage,       // S3 folder
-					post.Blocks[i].Image.Filename, // the original filename
-					"image/png",                   // or detect from extension
-					"0",                           // 0 for now, will update when complete user feature
+					constant.S3FolderImage,
+					post.Blocks[i].Image.Filename,
+					"image/png",
+					"0",
 					fileBytes,
 				)
 				if err != nil {
@@ -83,7 +83,7 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 
 				// Upload the video
 				s3Key, err := s.s3Uploader.UploadFile(
-					"videos",
+					constant.S3FolderVideo,
 					post.Blocks[i].Video.Filename,
 					"video/mp4",
 					"someUserID",
@@ -111,12 +111,17 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 }
 
 // FindPostsWithRawQuery: parse the raw query params in the service, then build QueryOptions.
-func (s *blogPostService) FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.BlogPost, error) {
+func (s *blogPostService) FindPostsWithRawQuery(
+	ctx context.Context,
+	rawFilters, rawSorts []string,
+	rawFields string,
+) ([]entity.BlogPost, error) {
 	parsedFilters, err := query.ParseFilters(rawFilters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse filters: %w", err)
 	}
 
+	// Convert "id" filter to "_id" if present:
 	for i, f := range parsedFilters {
 		if f.Field == "id" {
 			idStr, ok := f.Value.(string)
@@ -145,7 +150,38 @@ func (s *blogPostService) FindPostsWithRawQuery(ctx context.Context, rawFilters,
 		Fields:  parsedFields,
 	}
 
-	return s.repo.FindByQuery(ctx, opts)
+	posts, err := s.repo.FindByQuery(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find posts: %w", err)
+	}
+
+	for pIdx := range posts {
+		for bIdx := range posts[pIdx].Blocks {
+			block := &posts[pIdx].Blocks[bIdx]
+			switch block.Type {
+			case entity.BlockTypeImage:
+				if block.Image != nil && block.Image.Filename != "" {
+					link, presignErr := s.s3Uploader.GeneratePresignedURL(block.Image.Filename, 15*time.Minute)
+					if presignErr == nil {
+						block.Image.Link = &link
+					} else {
+						// Handle or log presignErr as needed
+					}
+				}
+			case entity.BlockTypeVideo:
+				if block.Video != nil && block.Video.Filename != "" {
+					link, presignErr := s.s3Uploader.GeneratePresignedURL(block.Video.Filename, 15*time.Minute)
+					if presignErr == nil {
+						block.Video.Link = &link
+					} else {
+						// Handle or log presignErr as needed
+					}
+				}
+			}
+		}
+	}
+
+	return posts, nil
 }
 
 // For update, we parse raw filters and build a bson.M filter. Then we call the repo method.
