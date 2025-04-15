@@ -37,19 +37,13 @@ func (a *AppRouter) RegisterUserRoutes(r *gin.RouterGroup) {
 	protected := r.Group("/users")
 	protected.Use(a.authMiddleware.MustAuth())
 	{
-		// protected.GET("/:user_id", a.userController.GetUser)
-		// protected.PUT("/:user_id", a.userController.UpdateUser)
-		// protected.DELETE("/:user_id", a.userController.DeleteUser)
 		protected.PUT("/:user_id/change-password", a.userController.ChangePassword)
-		// protected.PUT("/:user_id/update-avatar", a.userController.UpdateAvatar)                    // Avatar upload (presigned URL)
-		// protected.GET("/:user_id/avatar-download-url", a.userController.GenerateAvatarDownloadURL) // Avatar download (presigned URL)
-		// protected.GET("/:user_id/avatar", a.userController.LoadAvatar)                             // Load avatar directly
 	}
 }
 
 func (a *AppRouter) RegisterBlogRoutes(r *gin.RouterGroup) {
 	protected := r.Group("/blog")
-	// protected.Use(a.authMiddleware.MustAuth())
+	protected.Use(a.authMiddleware.MustAuth())
 	{
 		protected.POST("/posts", a.blogController.CreateBlogPostHandler)
 		protected.GET("/posts", a.blogController.FindBlogPostsHandler)
