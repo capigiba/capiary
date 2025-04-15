@@ -53,10 +53,19 @@ func main() {
 	blogService := services.NewBlogPostService(blogRepo, storageClient)
 	blogHandler := handler.NewBlogPostHandler(blogService)
 
+	categoryRepo := repositories.NewCategoryRepository(dbMongoConn)
+	categoryService := services.NewCategoryService(categoryRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
 	swaggerRouter := router.NewSwaggerRouter()
 
-	appRouter := router.NewAppRouter(userHandler, blogHandler, authUserMiddleware, swaggerRouter)
-	// appRouter := router.NewAppRouter(nil, blogHandler, nil, swaggerRouter)
+	appRouter := router.NewAppRouter(
+		userHandler,
+		blogHandler,
+		categoryHandler,
+		authUserMiddleware,
+		swaggerRouter,
+	)
 
 	router := gin.Default()
 
@@ -83,7 +92,9 @@ func main() {
 }
 
 func registerAPIRoutes(group *gin.RouterGroup, appRouter *router.AppRouter) {
+	appRouter.RegisterUserRoutes(group)
 	appRouter.RegisterBlogRoutes(group)
+	appRouter.RegisterCategoryRoutes(group)
 }
 
 func registerSwaggerRoutes(router *gin.Engine, appRouter *router.AppRouter) {
