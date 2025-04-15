@@ -7,22 +7,25 @@ import (
 )
 
 type AppRouter struct {
-	userController *handler.UserHandler
-	blogController *handler.BlogPostHandler
-	authMiddleware *middleware.AuthUserMiddleware
-	swaggerRouter  *SwaggerRouter
+	userController     *handler.UserHandler
+	blogController     *handler.BlogPostHandler
+	categoryController *handler.CategoryHandler
+	authMiddleware     *middleware.AuthUserMiddleware
+	swaggerRouter      *SwaggerRouter
 }
 
 func NewAppRouter(
 	userController *handler.UserHandler,
 	blogController *handler.BlogPostHandler,
+	categoryController *handler.CategoryHandler,
 	authMiddleware *middleware.AuthUserMiddleware,
 	swaggerRouter *SwaggerRouter) *AppRouter {
 	return &AppRouter{
-		userController: userController,
-		blogController: blogController,
-		authMiddleware: authMiddleware,
-		swaggerRouter:  swaggerRouter,
+		userController:     userController,
+		blogController:     blogController,
+		categoryController: categoryController,
+		authMiddleware:     authMiddleware,
+		swaggerRouter:      swaggerRouter,
 	}
 }
 
@@ -49,6 +52,21 @@ func (a *AppRouter) RegisterBlogRoutes(r *gin.RouterGroup) {
 		protected.GET("/posts", a.blogController.FindBlogPostsHandler)
 		protected.PUT("/posts", a.blogController.UpdateBlogPostHandler)
 		protected.GET("/posts/all", a.blogController.LoadAllPostsHandler)
+	}
+}
+
+func (a *AppRouter) RegisterCategoryRoutes(r *gin.RouterGroup) {
+	public := r.Group("/categories")
+	{
+		public.POST("/all", a.categoryController.LoadAllCategoriesHandler)
+	}
+
+	protected := r.Group("/categories")
+	protected.Use(a.authMiddleware.MustAuth())
+	{
+		protected.POST("/", a.categoryController.CreateCategoryHandler)
+		protected.GET("/", a.categoryController.FindCategoriesHandler)
+		protected.PUT("/", a.categoryController.UpdateCategoryHandler)
 	}
 }
 
