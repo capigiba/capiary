@@ -42,8 +42,12 @@ func (s *userService) RegisterUser(ctx context.Context, user *entity.User) error
 	if err != nil {
 		return err
 	}
+	if user.Email == "" || user.FirstName == "" || user.LastName == "" {
+		return errors.New("missing necessary fields")
+	}
 	user.Password = string(hashedPassword)
-	user.Status = constant.StatusPending
+	user.Status = constant.StatusPending // require accept from admin to use system
+	user.Role = constant.RoleBasic
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
