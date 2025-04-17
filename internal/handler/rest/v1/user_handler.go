@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -37,12 +38,19 @@ func (h *UserHandler) RegisterUser(c *gin.Context) {
 
 // Login handles user login.
 func (h *UserHandler) Login(c *gin.Context) {
-	email := c.DefaultPostForm("email", "")
-	password := c.DefaultPostForm("password", "")
+	var credentials struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&credentials); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	token, userID, role, err := h.userService.Login(c, email, password)
+	token, userID, role, err := h.userService.Login(c, credentials.Email, credentials.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		resultErr := fmt.Sprint("Invalid credentials: ", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": resultErr})
 		return
 	}
 

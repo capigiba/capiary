@@ -2,3 +2,5 @@ env.sh
 .env.production
 .env.staging
 .env.development
+/cmd/migration
+/cmd/test

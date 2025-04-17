@@ -4,6 +4,7 @@ SETUP_DIR := cmd/setup
 APP_NAME := capiary
 SCRIPT_DIR := scripts
 INITIALIZE_DIR := internal/initialize
+CMD_MIGRATION := cmd/migration
 
 # Default target
 all: build
@@ -36,6 +37,10 @@ swag:
 # Run all steps from the script
 run-all:
 	bash $(SCRIPT_DIR)/run-all.sh
+
+migration:
+	go run $(CMD_MIGRATION)/main.go
+	
 
 # Help
 help:
