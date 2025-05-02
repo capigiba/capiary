@@ -97,6 +97,7 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 			}
 
 		case entity.BlockTypeText:
+		case entity.BlockTypeHeading:
 			// No special action: the block.Text is already filled out
 		}
 	}

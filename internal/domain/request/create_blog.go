@@ -15,8 +15,14 @@ type CreateBlockRequest struct {
 	Type  constant.MediaType `json:"type"`
 	Order int                `json:"order"`
 
+	// for text blocks
 	Paragraphs []CreateParagraphRequest `json:"paragraphs,omitempty"`
 
+	// for heading blocks
+	HeadingLevel *int    `json:"heading_level,omitempty"`
+	Text         *string `json:"text,omitempty"`
+
+	// for image/video
 	Filename string `json:"filename,omitempty"`
 	FileData string `json:"file_data,omitempty"` // If using base64, for instance
 }

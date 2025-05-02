@@ -7,9 +7,10 @@ type TextBlock struct {
 
 // Paragraph holds text and zero or more format ranges (bold/italic/hyperlink/etc.).
 type Paragraph struct {
-	ID      int      `json:"id"`
-	Text    string   `json:"text"`
-	Formats []Format `json:"formats"`
+	ID       int       `json:"id"`
+	Text     string    `json:"text"`
+	Formats  []Format  `json:"formats"`
+	Headings []Heading `json:"headings,omitempty"`
 }
 
 // FormatType enumerates the kinds of formatting that can be applied to text in a paragraph.
@@ -29,4 +30,10 @@ type Format struct {
 	Start     int        `json:"start"`
 	End       int        `json:"end"`
 	Hyperlink *string    `json:"hyperlink,omitempty"` // Used only if Type == "hyperlink"
+}
+
+type Heading struct {
+	Type  string `json:"type"`
+	Start int    `json:"start"`
+	End   int    `json:"end"`
 }

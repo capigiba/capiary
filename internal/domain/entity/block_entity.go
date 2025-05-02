@@ -4,9 +4,10 @@ package entity
 type BlockType string
 
 const (
-	BlockTypeText  BlockType = "text"
-	BlockTypeImage BlockType = "image"
-	BlockTypeVideo BlockType = "video"
+	BlockTypeText    BlockType = "text"
+	BlockTypeImage   BlockType = "image"
+	BlockTypeVideo   BlockType = "video"
+	BlockTypeHeading BlockType = "heading"
 )
 
 // Block is a generic container that references the actual content
@@ -17,7 +18,8 @@ type Block struct {
 	Type  BlockType `json:"type"`
 	Order int       `json:"order"`
 
-	Text  *TextBlock  `json:"text,omitempty"`
-	Image *ImageBlock `json:"image,omitempty"`
-	Video *VideoBlock `json:"video,omitempty"`
+	Text    *TextBlock    `json:"text,omitempty"`
+	Image   *ImageBlock   `json:"image,omitempty"`
+	Video   *VideoBlock   `json:"video,omitempty"`
+	Heading *HeadingBlock `json:"heading,omitempty"`
 }

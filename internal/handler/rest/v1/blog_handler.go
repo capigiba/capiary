@@ -113,7 +113,18 @@ func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
 				textBlock.Paragraphs = append(textBlock.Paragraphs, para)
 			}
 			block.Text = &textBlock
-
+		case constant.MediaTypeHeading:
+			if blockReq.HeadingLevel == nil || blockReq.Text == nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "headingLevel and text are required for heading blocks",
+				})
+				return
+			}
+			block.Type = entity.BlockTypeHeading
+			block.Heading = &entity.HeadingBlock{
+				Level: *blockReq.HeadingLevel,
+				Text:  *blockReq.Text,
+			}
 		case constant.MediaTypeImage:
 			block.Type = entity.BlockTypeImage
 			block.Image = &entity.ImageBlock{
