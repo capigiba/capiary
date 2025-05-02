@@ -101,6 +101,10 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 		}
 	}
 
+	current_time := time.Now()
+	post.CreatedAt = current_time
+	post.UpdatedAt = current_time
+
 	// Finally store the post in the DB
 	insertedID, err := s.repo.Add(c.Request.Context(), post)
 	if err != nil {

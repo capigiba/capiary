@@ -3,12 +3,15 @@ package request
 import "github.com/capigiba/capiary/internal/domain/constant"
 
 type CreateBlogPostRequest struct {
-	Title  string               `json:"title"`
-	Blocks []CreateBlockRequest `json:"blocks"`
+	Title      string               `json:"title"`
+	Blocks     []CreateBlockRequest `json:"blocks"`
+	AuthorID   int                  `json:"author_id"`
+	Categories []string             `json:"categories"`
 }
 
 // CreateBlockRequest describes a single block in the request.
 type CreateBlockRequest struct {
+	ID    int                `json:"id"`
 	Type  constant.MediaType `json:"type"`
 	Order int                `json:"order"`
 

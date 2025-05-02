@@ -32,7 +32,7 @@ func (am *AuthUserMiddleware) MustAuth() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := extractToken(ctx)
 		if len(token) == 0 {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: Cannot extract token"})
 			return
 		}
 

@@ -78,33 +78,39 @@ func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
 	post := entity.BlogPost{
 		ID:    primitive.NewObjectID(),
 		Title: req.Title,
+		// AuthorID:   req.AuthorID,
+		// Categories: req.Categories,
 	}
 
 	// Rebuild the blocks array from req.Blocks, just like your snippet does:
 	var blocks []entity.Block
 	for i, blockReq := range req.Blocks {
+		id := blockReq.ID
+		if id == 0 {
+			id = i + 1
+		}
 		block := entity.Block{
-			ID:    i + 1,
+			ID:    id,
 			Order: blockReq.Order,
 		}
 		switch blockReq.Type {
 		case constant.MediaTypeText:
 			block.Type = entity.BlockTypeText
-			textBlock := entity.TextBlock{}
-			for _, paraReq := range blockReq.Paragraphs {
-				paragraph := entity.Paragraph{
-					ID:   paraReq.ID,
+			textBlock := entity.TextBlock{Paragraphs: []entity.Paragraph{}}
+			for j, paraReq := range blockReq.Paragraphs {
+				para := entity.Paragraph{
+					ID:   j + 1,
 					Text: paraReq.Text,
 				}
-				for _, formatReq := range paraReq.Formats {
-					paragraph.Formats = append(paragraph.Formats, entity.Format{
-						Type:      entity.FormatType(formatReq.Type),
-						Start:     formatReq.Start,
-						End:       formatReq.End,
-						Hyperlink: formatReq.Hyperlink,
+				for _, f := range paraReq.Formats {
+					para.Formats = append(para.Formats, entity.Format{
+						Type:      entity.FormatType(f.Type),
+						Start:     f.Start,
+						End:       f.End,
+						Hyperlink: f.Hyperlink,
 					})
 				}
-				textBlock.Paragraphs = append(textBlock.Paragraphs, paragraph)
+				textBlock.Paragraphs = append(textBlock.Paragraphs, para)
 			}
 			block.Text = &textBlock
 
