@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/capigiba/capiary/internal/domain/constant"
 	"github.com/capigiba/capiary/internal/domain/entity"
@@ -99,8 +100,9 @@ func (h *BlogPostHandler) CreateBlogPostHandler(c *gin.Context) {
 			textBlock := entity.TextBlock{Paragraphs: []entity.Paragraph{}}
 			for j, paraReq := range blockReq.Paragraphs {
 				para := entity.Paragraph{
-					ID:   j + 1,
-					Text: paraReq.Text,
+					ID:    j + 1,
+					Text:  paraReq.Text,
+					Align: paraReq.Align,
 				}
 				for _, f := range paraReq.Formats {
 					para.Formats = append(para.Formats, entity.Format{
@@ -157,12 +159,28 @@ func (h *BlogPostHandler) FindBlogPostsHandler(c *gin.Context) {
 	rawSorts := c.QueryArray("sort")     // e.g. ["age__desc", "title__asc"]
 	rawFields := c.Query("fields")       // e.g. "id,title"
 
-	posts, err := h.service.FindPostsWithRawQuery(c.Request.Context(), rawFilters, rawSorts, rawFields)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	posts, err := h.service.FindPostsWithRawQuery(c.Request.Context(), rawFilters, rawSorts, rawFields, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, posts)
+	c.JSON(http.StatusOK, gin.H{
+		"data": posts,
+		"meta": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"count":     len(posts),
+		},
+	})
 }
 
 // Update a blog post using a filter
@@ -190,4 +208,20 @@ func (h *BlogPostHandler) LoadAllPostsHandler(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, posts)
+}
+
+func (h *BlogPostHandler) DeleteBlogPostHandler(c *gin.Context) {
+	rawFilters := c.QueryArray("filter") // same format as update
+
+	if len(rawFilters) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing filter"})
+		return
+	}
+
+	if err := h.service.SoftDeletePostByRawFilter(c.Request.Context(), rawFilters); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "post deleted (soft)"})
 }

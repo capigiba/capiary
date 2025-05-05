@@ -18,4 +18,6 @@ type QueryOptions struct {
 	Filters []Filter
 	Sorts   []Sort
 	Fields  []string
+	Skip    int64
+	Limit   int64
 }

@@ -15,6 +15,7 @@ type BlogPostRepository interface {
 	UpdateByQuery(ctx context.Context, filter bson.M, update entity.BlogPost) error
 	FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.BlogPost, error)
 	LoadAll(ctx context.Context) ([]entity.BlogPost, error)
+	UpdateFieldsByQuery(ctx context.Context, filter bson.M, fields bson.M) error
 }
 
 type blogPostRepository struct {
@@ -40,6 +41,13 @@ func (r *blogPostRepository) Add(ctx context.Context, post entity.BlogPost) (str
 }
 
 func (r *blogPostRepository) UpdateByQuery(ctx context.Context, filter bson.M, update entity.BlogPost) error {
+	return r.adapter.UpdateOne(filter, update)
+}
+
+func (r *blogPostRepository) UpdateFieldsByQuery(
+	ctx context.Context, filter bson.M, fields bson.M) error {
+
+	update := bson.M{"$set": fields}
 	return r.adapter.UpdateOne(filter, update)
 }
 

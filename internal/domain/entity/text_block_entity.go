@@ -11,6 +11,7 @@ type Paragraph struct {
 	Text     string    `json:"text"`
 	Formats  []Format  `json:"formats"`
 	Headings []Heading `json:"headings,omitempty"`
+	Align    string    `json:"align"`
 }
 
 // FormatType enumerates the kinds of formatting that can be applied to text in a paragraph.

@@ -32,6 +32,7 @@ type CreateParagraphRequest struct {
 	ID      int                   `json:"id"`
 	Text    string                `json:"text"`
 	Formats []CreateFormatRequest `json:"formats"`
+	Align   string                `json:"align"`
 }
 
 // CreateFormatRequest mirrors the entity.Format struct

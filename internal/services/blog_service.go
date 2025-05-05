@@ -11,14 +11,16 @@ import (
 	"github.com/capigiba/capiary/internal/infra/storage"
 	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type BlogPostService interface {
 	CreatePostWithFiles(c *gin.Context, post entity.BlogPost) (string, error)
-	FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.BlogPost, error)
+	FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string, page, pageSize int) ([]entity.BlogPost, error)
 	UpdatePostByRawFilter(ctx context.Context, rawFilters []string, update entity.BlogPost) error
 	LoadAllPosts(ctx context.Context) ([]entity.BlogPost, error)
+	SoftDeletePostByRawFilter(ctx context.Context, rawFilters []string) error
 }
 
 type blogPostService struct {
@@ -106,6 +108,8 @@ func (s *blogPostService) CreatePostWithFiles(c *gin.Context, post entity.BlogPo
 	post.CreatedAt = current_time
 	post.UpdatedAt = current_time
 
+	post.Status = constant.BlogStatusActive
+
 	// Finally store the post in the DB
 	insertedID, err := s.repo.Add(c.Request.Context(), post)
 	if err != nil {
@@ -120,6 +124,7 @@ func (s *blogPostService) FindPostsWithRawQuery(
 	ctx context.Context,
 	rawFilters, rawSorts []string,
 	rawFields string,
+	page, pageSize int,
 ) ([]entity.BlogPost, error) {
 	parsedFilters, err := query.ParseFilters(rawFilters)
 	if err != nil {
@@ -146,6 +151,9 @@ func (s *blogPostService) FindPostsWithRawQuery(
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sorts: %w", err)
 	}
+	if len(parsedSorts) == 0 {
+		parsedSorts = []query.Sort{{Field: "created_at", Desc: true}}
+	}
 
 	parsedFields := query.ParseFields(rawFields)
 
@@ -153,6 +161,8 @@ func (s *blogPostService) FindPostsWithRawQuery(
 		Filters: parsedFilters,
 		Sorts:   parsedSorts,
 		Fields:  parsedFields,
+		Skip:    int64((page - 1) * pageSize),
+		Limit:   int64(pageSize),
 	}
 
 	posts, err := s.repo.FindByQuery(ctx, opts)
@@ -211,4 +221,24 @@ func (s *blogPostService) LoadAllPosts(ctx context.Context) ([]entity.BlogPost, 
 		return nil, fmt.Errorf("failed to load all posts: %w", err)
 	}
 	return posts, nil
+}
+
+func (s *blogPostService) SoftDeletePostByRawFilter(
+	ctx context.Context, rawFilters []string) error {
+
+	parsedFilters, err := query.ParseFilters(rawFilters)
+	if err != nil {
+		return fmt.Errorf("failed to parse filters: %w", err)
+	}
+
+	filterDoc, _ := query.BuildMongoQuery(query.QueryOptions{
+		Filters: parsedFilters,
+	})
+
+	fields := bson.M{
+		"status":     constant.BlogStatusDeleted,
+		"updated_at": time.Now(),
+	}
+
+	return s.repo.UpdateFieldsByQuery(ctx, filterDoc, fields)
 }
