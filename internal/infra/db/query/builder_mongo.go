@@ -55,5 +55,12 @@ func BuildMongoQuery(opts QueryOptions) (bson.M, *options.FindOptions) {
 		findOpts.SetProjection(projection)
 	}
 
+	if opts.Skip > 0 {
+		findOpts.SetSkip(opts.Skip)
+	}
+	if opts.Limit > 0 {
+		findOpts.SetLimit(opts.Limit)
+	}
+
 	return filter, findOpts
 }

@@ -44,11 +44,8 @@ func (r *blogPostRepository) UpdateByQuery(ctx context.Context, filter bson.M, u
 	return r.adapter.UpdateOne(filter, update)
 }
 
-func (r *blogPostRepository) UpdateFieldsByQuery(
-	ctx context.Context, filter bson.M, fields bson.M) error {
-
-	update := bson.M{"$set": fields}
-	return r.adapter.UpdateOne(filter, update)
+func (r *blogPostRepository) UpdateFieldsByQuery(ctx context.Context, filter bson.M, fields bson.M) error {
+	return r.adapter.UpdateOne(filter, fields)
 }
 
 func (r *blogPostRepository) FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.BlogPost, error) {

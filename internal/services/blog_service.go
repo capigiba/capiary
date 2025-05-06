@@ -18,7 +18,7 @@ import (
 type BlogPostService interface {
 	CreatePostWithFiles(c *gin.Context, post entity.BlogPost) (string, error)
 	FindPostsWithRawQuery(ctx context.Context, rawFilters, rawSorts []string, rawFields string, page, pageSize int) ([]entity.BlogPost, error)
-	UpdatePostByRawFilter(ctx context.Context, rawFilters []string, update entity.BlogPost) error
+	UpdatePostByRawFilter(c *gin.Context, rawFilters []string, update entity.BlogPost) error
 	LoadAllPosts(ctx context.Context) ([]entity.BlogPost, error)
 	SoftDeletePostByRawFilter(ctx context.Context, rawFilters []string) error
 }
@@ -147,6 +147,12 @@ func (s *blogPostService) FindPostsWithRawQuery(
 		}
 	}
 
+	// parsedFilters = append(parsedFilters, query.Filter{
+	// 	Field:    "status",
+	// 	Operator: query.OpEqual,
+	// 	Value:    constant.BlogStatusActive,
+	// })
+
 	parsedSorts, err := query.ParseSorts(rawSorts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sorts: %w", err)
@@ -200,19 +206,75 @@ func (s *blogPostService) FindPostsWithRawQuery(
 }
 
 // For update, we parse raw filters and build a bson.M filter. Then we call the repo method.
-func (s *blogPostService) UpdatePostByRawFilter(ctx context.Context, rawFilters []string, update entity.BlogPost) error {
-	parsedFilters, err := query.ParseFilters(rawFilters)
+func (s *blogPostService) UpdatePostByRawFilter(c *gin.Context, rawFilters []string, update entity.BlogPost) error {
+	parsed, err := query.ParseFilters(rawFilters)
 	if err != nil {
-		return fmt.Errorf("failed to parse filters: %w", err)
+		return fmt.Errorf("parse filter: %w", err)
 	}
 
-	filterDoc, _ := query.BuildMongoQuery(query.QueryOptions{
-		Filters: parsedFilters})
-
-	if update.Title == "" {
-		return fmt.Errorf("cannot update post with empty title")
+	for i, f := range parsed {
+		if f.Field == "id" {
+			if hex, ok := f.Value.(string); ok {
+				if oid, err := primitive.ObjectIDFromHex(hex); err == nil {
+					parsed[i].Field = "_id"
+					parsed[i].Value = oid
+				}
+			}
+		}
 	}
-	return s.repo.UpdateByQuery(ctx, filterDoc, update)
+
+	filterDoc, _ := query.BuildMongoQuery(query.QueryOptions{Filters: parsed})
+
+	// 1) iterate blocks – if a new fileBytes exists, push to S3 & overwrite filename
+	for i := range update.Blocks {
+		switch update.Blocks[i].Type {
+
+		case entity.BlockTypeImage:
+			key := fmt.Sprintf("block_%d_fileBytes", i)
+			if raw, ok := c.Get(key); ok {
+				bytes := raw.([]byte)
+				s3Key, err := s.s3Uploader.UploadFile(
+					constant.S3FolderImage,
+					update.Blocks[i].Image.Filename,
+					"image/png",
+					"0",
+					bytes,
+				)
+				if err != nil {
+					return fmt.Errorf("upload img %d: %w", i, err)
+				}
+				update.Blocks[i].Image.Filename = s3Key
+			}
+
+		case entity.BlockTypeVideo:
+			key := fmt.Sprintf("block_%d_fileBytes", i)
+			if raw, ok := c.Get(key); ok {
+				bytes := raw.([]byte)
+				s3Key, err := s.s3Uploader.UploadFile(
+					constant.S3FolderVideo,
+					update.Blocks[i].Video.Filename,
+					"video/mp4",
+					"someUser",
+					bytes,
+				)
+				if err != nil {
+					return fmt.Errorf("upload vid %d: %w", i, err)
+				}
+				update.Blocks[i].Video.Filename = s3Key
+			}
+		}
+	}
+
+	update.UpdatedAt = time.Now() // keep CreatedAt untouched
+
+	// 2) build bson.M "$set" doc: we never replace UID/_id, CreatedAt, Status
+	setDoc := bson.M{
+		"title":      update.Title,
+		"blocks":     update.Blocks,
+		"updated_at": update.UpdatedAt,
+	}
+
+	return s.repo.UpdateFieldsByQuery(c.Request.Context(), filterDoc, setDoc)
 }
 
 func (s *blogPostService) LoadAllPosts(ctx context.Context) ([]entity.BlogPost, error) {

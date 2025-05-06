@@ -187,13 +187,90 @@ func (h *BlogPostHandler) FindBlogPostsHandler(c *gin.Context) {
 func (h *BlogPostHandler) UpdateBlogPostHandler(c *gin.Context) {
 	rawFilters := c.QueryArray("filter") // e.g. ["_id__==__<ObjectID>"]
 
-	var update entity.BlogPost
-	if err := c.ShouldBindJSON(&update); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
+	if len(rawFilters) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing filter"})
 		return
 	}
 
-	err := h.service.UpdatePostByRawFilter(c.Request.Context(), rawFilters, update)
+	metaJSON := c.PostForm("metadata")
+	if metaJSON == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing metadata field"})
+		return
+	}
+
+	var req request.CreateBlogPostRequest // reuse same shape
+	if err := json.Unmarshal([]byte(metaJSON), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid metadata: " + err.Error()})
+		return
+	}
+
+	for i, b := range req.Blocks {
+		if b.Type != constant.MediaTypeImage && b.Type != constant.MediaTypeVideo {
+			continue
+		}
+		if fh, err := c.FormFile(fmt.Sprintf("block_%d_file", i)); err == nil {
+			f, _ := fh.Open()
+			defer f.Close()
+			bytes, _ := io.ReadAll(f)
+			c.Set(fmt.Sprintf("block_%d_fileBytes", i), bytes)
+			// keep original filename for MIME check / ext if needed
+			c.Set(fmt.Sprintf("block_%d_origFilename", i), fh.Filename)
+		}
+	}
+
+	post := entity.BlogPost{
+		Title: req.Title,
+	}
+	var blocks []entity.Block
+	for i, b := range req.Blocks {
+		id := b.ID
+		if id == 0 {
+			id = i + 1
+		}
+		blk := entity.Block{ID: id, Order: b.Order}
+		switch b.Type {
+		case constant.MediaTypeText:
+			blk.Type = entity.BlockTypeText
+			var paras []entity.Paragraph
+			for j, p := range b.Paragraphs {
+				para := entity.Paragraph{
+					ID:    j + 1,
+					Text:  p.Text,
+					Align: p.Align,
+				}
+				for _, f := range p.Formats {
+					para.Formats = append(para.Formats, entity.Format{
+						Type:      entity.FormatType(f.Type),
+						Start:     f.Start,
+						End:       f.End,
+						Hyperlink: f.Hyperlink,
+					})
+				}
+				paras = append(paras, para)
+			}
+			blk.Text = &entity.TextBlock{Paragraphs: paras}
+
+		case constant.MediaTypeHeading:
+			if b.HeadingLevel == nil || b.Text == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "heading requires level & text"})
+				return
+			}
+			blk.Type = entity.BlockTypeHeading
+			blk.Heading = &entity.HeadingBlock{Level: *b.HeadingLevel, Text: *b.Text}
+
+		case constant.MediaTypeImage:
+			blk.Type = entity.BlockTypeImage
+			blk.Image = &entity.ImageBlock{Filename: b.Filename}
+
+		case constant.MediaTypeVideo:
+			blk.Type = entity.BlockTypeVideo
+			blk.Video = &entity.VideoBlock{Filename: b.Filename}
+		}
+		blocks = append(blocks, blk)
+	}
+	post.Blocks = blocks
+
+	err := h.service.UpdatePostByRawFilter(c, rawFilters, post)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
