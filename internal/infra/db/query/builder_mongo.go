@@ -1,6 +1,7 @@
 package query
 
 import (
+	"fmt"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -9,27 +10,30 @@ import (
 
 // BuildMongoQuery builds a BSON filter and FindOptions for MongoDB.
 func BuildMongoQuery(opts QueryOptions) (bson.M, *options.FindOptions) {
+	fmt.Println("opts: ", opts)
 	filter := bson.M{}
 	findOpts := options.Find()
 
-	for _, fil := range opts.Filters {
-		switch fil.Operator {
-		case OpEqual:
-			filter[fil.Field] = fil.Value
-		case OpNotEqual:
-			filter[fil.Field] = bson.M{"$ne": fil.Value}
-		case OpGreaterThan:
-			filter[fil.Field] = bson.M{"$gt": fil.Value}
-		case OpLessThan:
-			filter[fil.Field] = bson.M{"$lt": fil.Value}
-		case OpGTE:
-			filter[fil.Field] = bson.M{"$gte": fil.Value}
-		case OpLTE:
-			filter[fil.Field] = bson.M{"$lte": fil.Value}
-		default:
-			// Fallback or handle custom operators
-			filter[fil.Field] = fil.Value
+	for _, f := range opts.Filters {
+		op := map[OperationType]string{
+			OpEqual:       "$eq",
+			OpNotEqual:    "$ne",
+			OpGreaterThan: "$gt",
+			OpLessThan:    "$lt",
+			OpGTE:         "$gte",
+			OpLTE:         "$lte",
+		}[f.Operator]
+
+		if f.Operator == OpEqual {
+			filter[f.Field] = f.Value
+			continue
 		}
+
+		// ensure a sub‑doc exists
+		if _, ok := filter[f.Field]; !ok {
+			filter[f.Field] = bson.M{}
+		}
+		filter[f.Field].(bson.M)[op] = f.Value
 	}
 
 	// Sort
@@ -61,6 +65,9 @@ func BuildMongoQuery(opts QueryOptions) (bson.M, *options.FindOptions) {
 	if opts.Limit > 0 {
 		findOpts.SetLimit(opts.Limit)
 	}
+
+	fmt.Println("filter: ", filter)
+	fmt.Println("findOpts: ", findOpts)
 
 	return filter, findOpts
 }
