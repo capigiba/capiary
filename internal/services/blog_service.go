@@ -160,7 +160,6 @@ func (s *blogPostService) FindPostsWithRawQuery(
 	if len(parsedSorts) == 0 {
 		parsedSorts = []query.Sort{{Field: "created_at", Desc: true}}
 	}
-
 	parsedSorts = append(parsedSorts, query.Sort{Field: "_id", Desc: true})
 
 	parsedFields := query.ParseFields(rawFields)

@@ -3,18 +3,20 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/capigiba/capiary/internal/domain/entity"
 	"github.com/capigiba/capiary/internal/infra/db/query"
 	"github.com/capigiba/capiary/internal/repositories"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type CategoryService interface {
 	Create(c *gin.Context, category entity.Category) (string, error)
-	Find(ctx context.Context, rawFilters, rawSorts []string, rawFields string) ([]entity.Category, error)
-	UpdateByRawFilter(ctx context.Context, rawFilters []string, update entity.Category) error
+	Find(ctx context.Context, rawFilters, rawSorts []string, rawFields string, page, pageSize int) ([]entity.Category, error)
+	UpdateByRawFilter(c *gin.Context, rawFilters []string, update entity.Category) error
 	LoadAll(ctx context.Context) ([]entity.Category, error)
 }
 
@@ -44,6 +46,7 @@ func (s *categoryService) Find(
 	ctx context.Context,
 	rawFilters, rawSorts []string,
 	rawFields string,
+	page, pageSize int,
 ) ([]entity.Category, error) {
 	parsedFilters, err := query.ParseFilters(rawFilters)
 	if err != nil {
@@ -70,6 +73,10 @@ func (s *categoryService) Find(
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse sorts: %w", err)
 	}
+	if len(parsedSorts) == 0 {
+		parsedSorts = []query.Sort{{Field: "created_at", Desc: true}}
+	}
+	parsedSorts = append(parsedSorts, query.Sort{Field: "_id", Desc: true})
 
 	parsedFields := query.ParseFields(rawFields)
 
@@ -77,6 +84,8 @@ func (s *categoryService) Find(
 		Filters: parsedFilters,
 		Sorts:   parsedSorts,
 		Fields:  parsedFields,
+		Skip:    int64((page - 1) * pageSize),
+		Limit:   int64(pageSize),
 	}
 
 	categories, err := s.repo.FindByQuery(ctx, opts)
@@ -87,10 +96,22 @@ func (s *categoryService) Find(
 	return categories, nil
 }
 
-func (s *categoryService) UpdateByRawFilter(ctx context.Context, rawFilters []string, update entity.Category) error {
+func (s *categoryService) UpdateByRawFilter(c *gin.Context, rawFilters []string, update entity.Category) error {
 	parsedFilters, err := query.ParseFilters(rawFilters)
 	if err != nil {
 		return fmt.Errorf("failed to parse filters: %w", err)
+
+	}
+
+	for i, f := range parsedFilters {
+		if f.Field == "id" {
+			if hex, ok := f.Value.(string); ok {
+				if oid, err := primitive.ObjectIDFromHex(hex); err == nil {
+					parsedFilters[i].Field = "_id"
+					parsedFilters[i].Value = oid
+				}
+			}
+		}
 	}
 
 	filterDoc, _ := query.BuildMongoQuery(query.QueryOptions{
@@ -99,7 +120,13 @@ func (s *categoryService) UpdateByRawFilter(ctx context.Context, rawFilters []st
 	if update.Name == "" {
 		return fmt.Errorf("cannot update post with empty name")
 	}
-	return s.repo.UpdateByQuery(ctx, filterDoc, update)
+	update.UpdatedAt = time.Now()
+	setDoc := bson.M{
+		"name":        update.Name,
+		"description": update.Description,
+		"updated_at":  update.UpdatedAt,
+	}
+	return s.repo.UpdateFieldsByQuery(c.Request.Context(), filterDoc, setDoc)
 }
 
 func (s *categoryService) LoadAll(ctx context.Context) ([]entity.Category, error) {

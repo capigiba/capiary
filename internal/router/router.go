@@ -57,17 +57,12 @@ func (a *AppRouter) RegisterBlogRoutes(r *gin.RouterGroup) {
 }
 
 func (a *AppRouter) RegisterCategoryRoutes(r *gin.RouterGroup) {
-	public := r.Group("/categories")
-	{
-		public.POST("/all", a.categoryController.LoadAllCategoriesHandler)
-	}
-
 	protected := r.Group("/categories")
 	protected.Use(a.authMiddleware.MustAuth())
 	{
-		protected.POST("/", a.categoryController.CreateCategoryHandler)
-		protected.GET("/", a.categoryController.FindCategoriesHandler)
-		protected.PUT("/", a.categoryController.UpdateCategoryHandler)
+		protected.POST("/create", a.categoryController.CreateCategoryHandler)
+		protected.GET("/list", a.categoryController.FindCategoriesHandler)
+		protected.PUT("/update", a.categoryController.UpdateCategoryHandler)
 	}
 }
 

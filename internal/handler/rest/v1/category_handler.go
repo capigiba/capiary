@@ -2,10 +2,13 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/capigiba/capiary/internal/domain/entity"
+	"github.com/capigiba/capiary/internal/domain/request"
 	"github.com/capigiba/capiary/internal/services"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // CategoryHandler wraps the CategoryService for use in HTTP handlers.
@@ -20,10 +23,16 @@ func NewCategoryHandler(service services.CategoryService) *CategoryHandler {
 
 // CreateCategoryHandler creates a new category using JSON request data.
 func (h *CategoryHandler) CreateCategoryHandler(c *gin.Context) {
-	var category entity.Category
-	if err := c.ShouldBindJSON(&category); err != nil {
+	var req request.CreateCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
 		return
+	}
+
+	category := entity.Category{
+		ID:          primitive.NewObjectID(),
+		Name:        req.Name,
+		Description: req.Description,
 	}
 
 	insertedID, err := h.service.Create(c, category)
@@ -42,28 +51,53 @@ func (h *CategoryHandler) FindCategoriesHandler(c *gin.Context) {
 	rawSorts := c.QueryArray("sort")
 	rawFields := c.Query("fields")
 
-	categories, err := h.service.Find(c.Request.Context(), rawFilters, rawSorts, rawFields)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	categories, err := h.service.Find(c.Request.Context(), rawFilters, rawSorts, rawFields, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, categories)
+	c.JSON(http.StatusOK, gin.H{
+		"data": categories,
+		"meta": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"count":     len(categories),
+		},
+	})
 }
 
 // UpdateCategoryHandler updates a category using raw filters in query params and JSON body as the update data.
 // e.g. PATCH /categories?filter=id__==__<someObjectId>
 func (h *CategoryHandler) UpdateCategoryHandler(c *gin.Context) {
 	rawFilters := c.QueryArray("filter")
+	if len(rawFilters) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing filter"})
+		return
+	}
 
-	var update entity.Category
-	if err := c.ShouldBindJSON(&update); err != nil {
+	var req request.UpdateCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON: " + err.Error()})
 		return
 	}
 
-	if err := h.service.UpdateByRawFilter(c.Request.Context(), rawFilters, update); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update category: " + err.Error()})
+	update := entity.Category{
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	if err := h.service.UpdateByRawFilter(c, rawFilters, update); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

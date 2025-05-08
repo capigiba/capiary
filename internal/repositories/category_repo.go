@@ -14,6 +14,7 @@ type CategoryRepository interface {
 	Add(ctx context.Context, post entity.Category) (string, error)
 	UpdateByQuery(ctx context.Context, filter bson.M, update entity.Category) error
 	FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.Category, error)
+	UpdateFieldsByQuery(ctx context.Context, filter bson.M, fields bson.M) error
 	LoadAll(ctx context.Context) ([]entity.Category, error)
 }
 
@@ -46,6 +47,10 @@ func (r *categoryRepository) UpdateByQuery(ctx context.Context, filter bson.M, u
 func (r *categoryRepository) FindByQuery(ctx context.Context, opts query.QueryOptions) ([]entity.Category, error) {
 	fmt.Println(opts)
 	return r.adapter.FindWithQuery(opts)
+}
+
+func (r *categoryRepository) UpdateFieldsByQuery(ctx context.Context, filter bson.M, fields bson.M) error {
+	return r.adapter.UpdateOne(filter, fields)
 }
 
 func (r *categoryRepository) LoadAll(ctx context.Context) ([]entity.Category, error) {
